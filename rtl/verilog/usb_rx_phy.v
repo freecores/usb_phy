@@ -39,16 +39,19 @@
 
 //  CVS Log
 //
-//  $Id: usb_rx_phy.v,v 1.3 2003-10-19 18:07:45 rudi Exp $
+//  $Id: usb_rx_phy.v,v 1.4 2003-12-02 04:56:00 rudi Exp $
 //
-//  $Date: 2003-10-19 18:07:45 $
-//  $Revision: 1.3 $
+//  $Date: 2003-12-02 04:56:00 $
+//  $Revision: 1.4 $
 //  $Author: rudi $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.3  2003/10/19 18:07:45  rudi
+//               - Fixed Sync Error to be only checked/generated during the sync phase
+//
 //               Revision 1.2  2003/10/19 17:40:13  rudi
 //               - Made core more robust against line noise
 //               - Added Error Checking and Reporting
@@ -92,11 +95,12 @@ output	[1:0]	LineState;
 // Local Wires and Registers
 //
 
-reg		rxd_t1,  rxd_s0, rxd_s1,  rxd_s;
-reg		rxdp_t1, rxdp_s0, rxdp_s1, rxdp_s, rxdp_s_r;
-reg		rxdn_t1, rxdn_s0, rxdn_s1, rxdn_s, rxdn_s_r;
+reg		rxd_s0, rxd_s1,  rxd_s;
+reg		rxdp_s0, rxdp_s1, rxdp_s, rxdp_s_r;
+reg		rxdn_s0, rxdn_s1, rxdn_s, rxdn_s_r;
 reg		synced_d;
 wire		k, j, se0;
+reg		rxd_r;
 reg		rx_en;
 reg		rx_active;
 reg	[2:0]	bit_cnt;
@@ -109,7 +113,8 @@ wire		drop_bit;	// Indicates a stuffed bit
 reg	[2:0]	one_cnt;
 
 reg	[1:0]	dpll_state, dpll_next_state;
-reg		fs_ce_d, fs_ce;
+reg		fs_ce_d;
+reg		fs_ce;
 wire		change;
 wire		lock_en;
 reg	[2:0]	fs_state, fs_next_state;
@@ -142,22 +147,19 @@ always @(posedge clk)	sync_err <= !rx_active & sync_err_d;
 // Then make sure we see the signal for at least two
 // clock cycles stable to avoid glitches and noise
 
-always @(posedge clk)	rxd_t1  <= rxd;
-always @(posedge clk)	rxd_s0  <= rxd_t1;
+always @(posedge clk)	rxd_s0  <= rxd;
 always @(posedge clk)	rxd_s1  <= rxd_s0;
-always @(posedge clk)						// Avoid detecting Line Glitches and noise
+always @(posedge clk)							// Avoid detecting Line Glitches and noise
 	if(rxd_s0 && rxd_s1)	rxd_s <= 1'b1;
 	else
 	if(!rxd_s0 && !rxd_s1)	rxd_s <= 1'b0;
 
-always @(posedge clk)	rxdp_t1  <= rxdp;
-always @(posedge clk)	rxdp_s0  <= rxdp_t1;
+always @(posedge clk)	rxdp_s0  <= rxdp;
 always @(posedge clk)	rxdp_s1  <= rxdp_s0;
 always @(posedge clk)	rxdp_s_r <= rxdp_s0 & rxdp_s1;
 always @(posedge clk)	rxdp_s   <= (rxdp_s0 & rxdp_s1) | rxdp_s_r;	// Avoid detecting Line Glitches and noise
 
-always @(posedge clk)	rxdn_t1  <= rxdn;
-always @(posedge clk)	rxdn_s0  <= rxdn_t1;
+always @(posedge clk)	rxdn_s0  <= rxdn;
 always @(posedge clk)	rxdn_s1  <= rxdn_s0;
 always @(posedge clk)	rxdn_s_r <= rxdn_s0 & rxdn_s1;
 always @(posedge clk)	rxdn_s   <= (rxdn_s0 & rxdn_s1) | rxdn_s_r;	// Avoid detecting Line Glitches and noise
@@ -183,8 +185,10 @@ assign se0 = !rxdp_s & !rxdn_s;
 // Allow lockinf only when we are receiving
 assign	lock_en = rx_en;
 
+always @(posedge clk)	rxd_r <= rxd_s;
+
 // Edge detector
-assign change = (rxdp_s0 != rxdp_s1) | (rxdn_s0 != rxdn_s1);
+assign change = rxd_r != rxd_s;
 
 // DPLL FSM
 `ifdef USB_ASYNC_REST
@@ -218,7 +222,12 @@ always @(dpll_state or lock_en or change)
 
 // Compensate for sync registers at the input - allign full speed
 // clock enable to be in the middle between two bit changes ...
-always @(posedge clk)	fs_ce <= fs_ce_d;
+reg	fs_ce_r1, fs_ce_r2;
+
+always @(posedge clk)	fs_ce_r1 <= fs_ce_d;
+always @(posedge clk)	fs_ce_r2 <= fs_ce_r1;
+always @(posedge clk)	fs_ce <= fs_ce_r2;
+
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -352,6 +361,8 @@ always @(posedge clk or negedge rst)
 always @(posedge clk)
 `endif
 	if(!rst)		sd_nrzi <= 1'b0;
+	else
+	if(!rx_active)		sd_nrzi <= 1'b1;
 	else
 	if(rx_active && fs_ce)	sd_nrzi <= !(rxd_s ^ sd_r);
 
