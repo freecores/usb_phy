@@ -39,16 +39,21 @@
 
 //  CVS Log
 //
-//  $Id: usb_rx_phy.v,v 1.2 2003-10-19 17:40:13 rudi Exp $
+//  $Id: usb_rx_phy.v,v 1.3 2003-10-19 18:07:45 rudi Exp $
 //
-//  $Date: 2003-10-19 17:40:13 $
-//  $Revision: 1.2 $
+//  $Date: 2003-10-19 18:07:45 $
+//  $Revision: 1.3 $
 //  $Author: rudi $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.2  2003/10/19 17:40:13  rudi
+//               - Made core more robust against line noise
+//               - Added Error Checking and Reporting
+//               (See README.txt for more info)
+//
 //               Revision 1.1.1.1  2002/09/16 14:27:01  rudi
 //               Created Directory Structure
 //
@@ -125,7 +130,7 @@ assign DataIn_o = hold_reg;
 assign LineState = {rxdp_s1, rxdn_s1};
 
 always @(posedge clk)	rx_en <= RxEn_i;
-always @(posedge clk)	sync_err <= sync_err_d;
+always @(posedge clk)	sync_err <= !rx_active & sync_err_d;
 
 ///////////////////////////////////////////////////////////////////
 //
