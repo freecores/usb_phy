@@ -38,16 +38,19 @@
 
 //  CVS Log
 //
-//  $Id: usb_phy.v,v 1.2 2002-09-16 16:06:37 rudi Exp $
+//  $Id: usb_phy.v,v 1.3 2003-10-19 17:40:13 rudi Exp $
 //
-//  $Date: 2002-09-16 16:06:37 $
-//  $Revision: 1.2 $
+//  $Date: 2003-10-19 17:40:13 $
+//  $Revision: 1.3 $
 //  $Author: rudi $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.2  2002/09/16 16:06:37  rudi
+//               Changed top level name to be consistent ...
+//
 //               Revision 1.1.1.1  2002/09/16 14:26:59  rudi
 //               Created Directory Structure
 //
@@ -92,7 +95,7 @@ output	[1:0]	LineState_o;
 // Local Wires and Registers
 //
 
-reg	[5:0]	rst_cnt;
+reg	[4:0]	rst_cnt;
 reg		usb_rst;
 wire		reset;
 
@@ -155,14 +158,14 @@ usb_rx_phy i_rx_phy(
 //
 
 always @(posedge clk)
-	if(!rst)			rst_cnt <= #1 5'h0;
+	if(!rst)			rst_cnt <= 5'h0;
 	else
-	if(LineState_o != 2'h0)		rst_cnt <= #1 5'h0;
+	if(LineState_o != 2'h0)		rst_cnt <= 5'h0;
 	else	
-	if(!usb_rst & fs_ce)		rst_cnt <= #1 rst_cnt + 5'h1;
+	if(!usb_rst && fs_ce)		rst_cnt <= rst_cnt + 5'h1;
 
 always @(posedge clk)
-	usb_rst <= #1 (rst_cnt == 5'd31);
+	usb_rst <= (rst_cnt == 5'h1f);
 
 endmodule
 

@@ -39,16 +39,19 @@
 
 //  CVS Log
 //
-//  $Id: usb_tx_phy.v,v 1.1.1.1 2002-09-16 14:27:02 rudi Exp $
+//  $Id: usb_tx_phy.v,v 1.2 2003-10-19 17:40:13 rudi Exp $
 //
-//  $Date: 2002-09-16 14:27:02 $
-//  $Revision: 1.1.1.1 $
+//  $Date: 2003-10-19 17:40:13 $
+//  $Revision: 1.2 $
 //  $Author: rudi $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.1.1.1  2002/09/16 14:27:02  rudi
+//               Created Directory Structure
+//
 //
 //
 //
@@ -91,7 +94,6 @@ parameter	IDLE	= 3'd0,
 
 reg		TxReady_o;
 reg	[2:0]	state, next_state;
-reg		tx_ready;
 reg		tx_ready_d;
 reg		ld_sop_d;
 reg		ld_data_d;
@@ -125,19 +127,16 @@ reg		txoe;
 // Misc Logic
 //
 
-always @(posedge clk)
-	tx_ready <= #1 tx_ready_d;
-
 `ifdef USB_ASYNC_REST
 always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	TxReady_o <= #1 1'b0;
-	else		TxReady_o <= #1 tx_ready_d & TxValid_i;
+	if(!rst)	TxReady_o <= 1'b0;
+	else		TxReady_o <= tx_ready_d & TxValid_i;
 
 always @(posedge clk)
-	ld_data <= #1 ld_data_d;
+	ld_data <= ld_data_d;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -149,20 +148,20 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	tx_ip <= #1 1'b0;
+	if(!rst)	tx_ip <= 1'b0;
 	else
-	if(ld_sop_d)	tx_ip <= #1 1'b1;
+	if(ld_sop_d)	tx_ip <= 1'b1;
 	else
-	if(eop_done)	tx_ip <= #1 1'b0;
+	if(eop_done)	tx_ip <= 1'b0;
 
 `ifdef USB_ASYNC_REST
 always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)		tx_ip_sync <= #1 1'b0;
+	if(!rst)		tx_ip_sync <= 1'b0;
 	else
-	if(fs_ce)		tx_ip_sync <= #1 tx_ip;
+	if(fs_ce)		tx_ip_sync <= tx_ip;
 
 // data_done helps us to catch cases where TxValid drops due to
 // packet end and then gets re-asserted as a new packet starts.
@@ -173,11 +172,11 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)		data_done <= #1 1'b0;
+	if(!rst)		data_done <= 1'b0;
 	else
-	if(TxValid_i & ! tx_ip)	data_done <= #1 1'b1;
+	if(TxValid_i && ! tx_ip)	data_done <= 1'b1;
 	else
-	if(!TxValid_i)		data_done <= #1 1'b0;
+	if(!TxValid_i)		data_done <= 1'b0;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -189,41 +188,41 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)		bit_cnt <= #1 3'h0;
+	if(!rst)		bit_cnt <= 3'h0;
 	else
-	if(!tx_ip_sync)		bit_cnt <= #1 3'h0;
+	if(!tx_ip_sync)		bit_cnt <= 3'h0;
 	else
-	if(fs_ce & !hold)	bit_cnt <= #1 bit_cnt + 3'h1;
+	if(fs_ce && !hold)	bit_cnt <= bit_cnt + 3'h1;
 
 assign hold = stuff;
 
 always @(posedge clk)
-	if(!tx_ip_sync)		sd_raw_o <= #1 1'b0;
+	if(!tx_ip_sync)		sd_raw_o <= 1'b0;
 	else
 	case(bit_cnt)	// synopsys full_case parallel_case
-	   3'h0: sd_raw_o <= #1 hold_reg[0];
-	   3'h1: sd_raw_o <= #1 hold_reg[1];
-	   3'h2: sd_raw_o <= #1 hold_reg[2];
-	   3'h3: sd_raw_o <= #1 hold_reg[3];
-	   3'h4: sd_raw_o <= #1 hold_reg[4];
-	   3'h5: sd_raw_o <= #1 hold_reg[5];
-	   3'h6: sd_raw_o <= #1 hold_reg[6];
-	   3'h7: sd_raw_o <= #1 hold_reg[7];
+	   3'h0: sd_raw_o <= hold_reg[0];
+	   3'h1: sd_raw_o <= hold_reg[1];
+	   3'h2: sd_raw_o <= hold_reg[2];
+	   3'h3: sd_raw_o <= hold_reg[3];
+	   3'h4: sd_raw_o <= hold_reg[4];
+	   3'h5: sd_raw_o <= hold_reg[5];
+	   3'h6: sd_raw_o <= hold_reg[6];
+	   3'h7: sd_raw_o <= hold_reg[7];
 	endcase
 
 always @(posedge clk)
-	sft_done <= #1 !hold & (bit_cnt == 3'h7);
+	sft_done <= !hold & (bit_cnt == 3'h7);
 
 always @(posedge clk)
-	sft_done_r <= #1 sft_done;
+	sft_done_r <= sft_done;
 
 assign sft_done_e = sft_done & !sft_done_r;
 
 // Out Data Hold Register
 always @(posedge clk)
-	if(ld_sop_d)	hold_reg <= #1 8'h80;
+	if(ld_sop_d)	hold_reg <= 8'h80;
 	else
-	if(ld_data)	hold_reg <= #1 DataOut_i;
+	if(ld_data)	hold_reg <= DataOut_i;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -235,14 +234,14 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	one_cnt <= #1 3'h0;
+	if(!rst)	one_cnt <= 3'h0;
 	else
-	if(!tx_ip_sync)	one_cnt <= #1 3'h0;
+	if(!tx_ip_sync)	one_cnt <= 3'h0;
 	else
 	if(fs_ce)
 	   begin
-		if(!sd_raw_o | stuff)	one_cnt <= #1 3'h0;
-		else			one_cnt <= #1 one_cnt + 3'h1;
+		if(!sd_raw_o || stuff)	one_cnt <= 3'h0;
+		else			one_cnt <= one_cnt + 3'h1;
 	   end
 
 assign stuff = (one_cnt==3'h6);
@@ -252,10 +251,9 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	sd_bs_o <= #1 1'h0;
+	if(!rst)	sd_bs_o <= 1'h0;
 	else
-	if(fs_ce)	sd_bs_o <= #1 !tx_ip_sync ? 1'b0 :
-				(stuff ? 1'b0 : sd_raw_o);
+	if(fs_ce)	sd_bs_o <= !tx_ip_sync ? 1'b0 : (stuff ? 1'b0 : sd_raw_o);
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -267,11 +265,11 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	sd_nrzi_o <= #1 1'b1;
+	if(!rst)			sd_nrzi_o <= 1'b1;
 	else
-	if(!tx_ip_sync | !txoe_r1)	sd_nrzi_o <= #1 1'b1;
+	if(!tx_ip_sync || !txoe_r1)	sd_nrzi_o <= 1'b1;
 	else
-	if(fs_ce)	sd_nrzi_o <= #1 sd_bs_o ? sd_nrzi_o : ~sd_nrzi_o;
+	if(fs_ce)			sd_nrzi_o <= sd_bs_o ? sd_nrzi_o : ~sd_nrzi_o;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -283,38 +281,38 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)		append_eop <= #1 1'b0;
+	if(!rst)		append_eop <= 1'b0;
 	else
-	if(ld_eop_d)		append_eop <= #1 1'b1;
+	if(ld_eop_d)		append_eop <= 1'b1;
 	else
-	if(append_eop_sync2)	append_eop <= #1 1'b0;
+	if(append_eop_sync2)	append_eop <= 1'b0;
 
 `ifdef USB_ASYNC_REST
 always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	append_eop_sync1 <= #1 1'b0;
+	if(!rst)	append_eop_sync1 <= 1'b0;
 	else
-	if(fs_ce)	append_eop_sync1 <= #1 append_eop;
+	if(fs_ce)	append_eop_sync1 <= append_eop;
 
 `ifdef USB_ASYNC_REST
 always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	append_eop_sync2 <= #1 1'b0;
+	if(!rst)	append_eop_sync2 <= 1'b0;
 	else
-	if(fs_ce)	append_eop_sync2 <= #1 append_eop_sync1;
+	if(fs_ce)	append_eop_sync2 <= append_eop_sync1;
 
 `ifdef USB_ASYNC_REST
 always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	append_eop_sync3 <= #1 1'b0;
+	if(!rst)	append_eop_sync3 <= 1'b0;
 	else
-	if(fs_ce)	append_eop_sync3 <= #1 append_eop_sync2;
+	if(fs_ce)	append_eop_sync3 <= append_eop_sync2;
 
 assign eop_done = append_eop_sync3;
 
@@ -328,27 +326,27 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	txoe_r1 <= #1 1'b0;
+	if(!rst)	txoe_r1 <= 1'b0;
 	else
-	if(fs_ce)	txoe_r1 <= #1 tx_ip_sync;
+	if(fs_ce)	txoe_r1 <= tx_ip_sync;
 
 `ifdef USB_ASYNC_REST
 always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	txoe_r2 <= #1 1'b0;
+	if(!rst)	txoe_r2 <= 1'b0;
 	else
-	if(fs_ce)	txoe_r2 <= #1 txoe_r1;
+	if(fs_ce)	txoe_r2 <= txoe_r1;
 
 `ifdef USB_ASYNC_REST
 always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	txoe <= #1 1'b1;
+	if(!rst)	txoe <= 1'b1;
 	else
-	if(fs_ce)	txoe <= #1 !(txoe_r1 | txoe_r2);
+	if(fs_ce)	txoe <= !(txoe_r1 | txoe_r2);
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -360,9 +358,9 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	txdp <= #1 1'b1;
+	if(!rst)	txdp <= 1'b1;
 	else
-	if(fs_ce)	txdp <= #1 phy_mode ?
+	if(fs_ce)	txdp <= phy_mode ?
 					(!append_eop_sync3 &  sd_nrzi_o) :
 					sd_nrzi_o;
 
@@ -371,9 +369,9 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	txdn <= #1 1'b0;
+	if(!rst)	txdn <= 1'b0;
 	else
-	if(fs_ce)	txdn <= #1 phy_mode ?
+	if(fs_ce)	txdn <= phy_mode ?
 					(!append_eop_sync3 & ~sd_nrzi_o) :
 					append_eop_sync3;
 
@@ -387,8 +385,8 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	state <= #1 IDLE;
-	else		state <= #1 next_state;
+	if(!rst)	state <= IDLE;
+	else		state <= next_state;
 
 always @(state or TxValid_i or data_done or sft_done_e or eop_done or fs_ce)
    begin
@@ -419,13 +417,13 @@ always @(state or TxValid_i or data_done or sft_done_e or eop_done or fs_ce)
 		   end
 	   DATA:
 		   begin
-			if(!data_done & sft_done_e)
+			if(!data_done && sft_done_e)
 			   begin
 				ld_eop_d = 1'b1;
 				next_state = EOP1;
 			   end
 			
-			if(data_done & sft_done_e)
+			if(data_done && sft_done_e)
 			   begin
 				tx_ready_d = 1'b1;
 				ld_data_d = 1'b1;
@@ -437,14 +435,13 @@ always @(state or TxValid_i or data_done or sft_done_e or eop_done or fs_ce)
 		   end
 	   EOP2:
 		   begin
-			if(!eop_done & fs_ce)	next_state = WAIT;
+			if(!eop_done && fs_ce)	next_state = WAIT;
 		   end
 	   WAIT:
 		   begin
 			if(fs_ce)		next_state = IDLE;
 		   end
 	endcase
-	
    end
 
 endmodule

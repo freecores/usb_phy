@@ -39,16 +39,19 @@
 
 //  CVS Log
 //
-//  $Id: usb_rx_phy.v,v 1.1.1.1 2002-09-16 14:27:01 rudi Exp $
+//  $Id: usb_rx_phy.v,v 1.2 2003-10-19 17:40:13 rudi Exp $
 //
-//  $Date: 2002-09-16 14:27:01 $
-//  $Revision: 1.1.1.1 $
+//  $Date: 2003-10-19 17:40:13 $
+//  $Revision: 1.2 $
 //  $Author: rudi $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.1.1.1  2002/09/16 14:27:01  rudi
+//               Created Directory Structure
+//
 //
 //
 //
@@ -84,9 +87,9 @@ output	[1:0]	LineState;
 // Local Wires and Registers
 //
 
-reg		rxd_t1,  rxd_s1,  rxd_s;
-reg		rxdp_t1, rxdp_s1, rxdp_s;
-reg		rxdn_t1, rxdn_s1, rxdn_s;
+reg		rxd_t1,  rxd_s0, rxd_s1,  rxd_s;
+reg		rxdp_t1, rxdp_s0, rxdp_s1, rxdp_s, rxdp_s_r;
+reg		rxdn_t1, rxdn_s0, rxdn_s1, rxdn_s, rxdn_s_r;
 reg		synced_d;
 wire		k, j, se0;
 reg		rx_en;
@@ -103,11 +106,12 @@ reg	[2:0]	one_cnt;
 reg	[1:0]	dpll_state, dpll_next_state;
 reg		fs_ce_d, fs_ce;
 wire		change;
-reg		rxdp_s1r, rxdn_s1r;
 wire		lock_en;
-reg		fs_ce_r1, fs_ce_r2, fs_ce_r3;
 reg	[2:0]	fs_state, fs_next_state;
 reg		rx_valid_r;
+reg		sync_err_d, sync_err;
+reg		bit_stuff_err;
+reg		se0_r, byte_err;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -116,12 +120,12 @@ reg		rx_valid_r;
 
 assign RxActive_o = rx_active;
 assign RxValid_o = rx_valid;
-assign RxError_o = 0;
+assign RxError_o = sync_err | bit_stuff_err | byte_err;
 assign DataIn_o = hold_reg;
 assign LineState = {rxdp_s1, rxdn_s1};
 
-always @(posedge clk)
-	rx_en <= #1 RxEn_i;
+always @(posedge clk)	rx_en <= RxEn_i;
+always @(posedge clk)	sync_err <= sync_err_d;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -129,34 +133,29 @@ always @(posedge clk)
 //
 
 // First synchronize to the local system clock to
-// avoid metastability outside the sync block (*_s1)
-// Second synchronise to the internal bit clock (*_s)
-always @(posedge clk)
-	rxd_t1 <= #1 rxd;
+// avoid metastability outside the sync block (*_s0).
+// Then make sure we see the signal for at least two
+// clock cycles stable to avoid glitches and noise
 
-always @(posedge clk)
-	rxd_s1 <= #1 rxd_t1;
+always @(posedge clk)	rxd_t1  <= rxd;
+always @(posedge clk)	rxd_s0  <= rxd_t1;
+always @(posedge clk)	rxd_s1  <= rxd_s0;
+always @(posedge clk)						// Avoid detecting Line Glitches and noise
+	if(rxd_s0 && rxd_s1)	rxd_s <= 1'b1;
+	else
+	if(!rxd_s0 && !rxd_s1)	rxd_s <= 1'b0;
 
-always @(posedge clk)
-	rxd_s <= #1 rxd_s1;
+always @(posedge clk)	rxdp_t1  <= rxdp;
+always @(posedge clk)	rxdp_s0  <= rxdp_t1;
+always @(posedge clk)	rxdp_s1  <= rxdp_s0;
+always @(posedge clk)	rxdp_s_r <= rxdp_s0 & rxdp_s1;
+always @(posedge clk)	rxdp_s   <= (rxdp_s0 & rxdp_s1) | rxdp_s_r;	// Avoid detecting Line Glitches and noise
 
-always @(posedge clk)
-	rxdp_t1 <= #1 rxdp;
-
-always @(posedge clk)
-	rxdp_s1 <= #1 rxdp_t1;
-
-always @(posedge clk)
-	rxdp_s <= #1 rxdp_s1;
-
-always @(posedge clk)
-	rxdn_t1 <= #1 rxdn;
-
-always @(posedge clk)
-	rxdn_s1 <= #1 rxdn_t1;
-
-always @(posedge clk)
-	rxdn_s <= #1 rxdn_s1;
+always @(posedge clk)	rxdn_t1  <= rxdn;
+always @(posedge clk)	rxdn_s0  <= rxdn_t1;
+always @(posedge clk)	rxdn_s1  <= rxdn_s0;
+always @(posedge clk)	rxdn_s_r <= rxdn_s0 & rxdn_s1;
+always @(posedge clk)	rxdn_s   <= (rxdn_s0 & rxdn_s1) | rxdn_s_r;	// Avoid detecting Line Glitches and noise
 
 assign k = !rxdp_s &  rxdn_s;
 assign j =  rxdp_s & !rxdn_s;
@@ -180,13 +179,7 @@ assign se0 = !rxdp_s & !rxdn_s;
 assign	lock_en = rx_en;
 
 // Edge detector
-always @(posedge clk)
-	rxdp_s1r <= #1 rxdp_s1;
-
-always @(posedge clk)
-	rxdn_s1r <= #1 rxdn_s1;
-
-assign change = (rxdp_s1r != rxdp_s1) | (rxdn_s1r != rxdn_s1);
+assign change = (rxdp_s0 != rxdp_s1) | (rxdn_s0 != rxdn_s1);
 
 // DPLL FSM
 `ifdef USB_ASYNC_REST
@@ -194,44 +187,33 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	dpll_state <= #1 2'h1;
-	else		dpll_state <= #1 dpll_next_state;
+	if(!rst)	dpll_state <= 2'h1;
+	else		dpll_state <= dpll_next_state;
 
 always @(dpll_state or lock_en or change)
    begin
 	fs_ce_d = 1'b0;
 	case(dpll_state)	// synopsys full_case parallel_case
 	   2'h0:
-		if(lock_en & change)	dpll_next_state = 3'h0;
-		else			dpll_next_state = 3'h1;
+		if(lock_en && change)	dpll_next_state = 2'h0;
+		else			dpll_next_state = 2'h1;
 	   2'h1:begin
 		fs_ce_d = 1'b1;
-		//if(lock_en & change)	dpll_next_state = 3'h0;
-		if(lock_en & change)	dpll_next_state = 3'h3;
-		else			dpll_next_state = 3'h2;
+		if(lock_en && change)	dpll_next_state = 2'h3;
+		else			dpll_next_state = 2'h2;
 		end
 	   2'h2:
-		if(lock_en & change)	dpll_next_state = 3'h0;
-		else			dpll_next_state = 3'h3;
+		if(lock_en && change)	dpll_next_state = 2'h0;
+		else			dpll_next_state = 2'h3;
 	   2'h3:
-		if(lock_en & change)	dpll_next_state = 3'h0;
-		else			dpll_next_state = 3'h0;
+		if(lock_en && change)	dpll_next_state = 2'h0;
+		else			dpll_next_state = 2'h0;
 	endcase
    end
 
 // Compensate for sync registers at the input - allign full speed
 // clock enable to be in the middle between two bit changes ...
-always @(posedge clk)
-	fs_ce_r1 <= #1 fs_ce_d;
-
-always @(posedge clk)
-	fs_ce_r2 <= #1 fs_ce_r1;
-
-always @(posedge clk)
-	fs_ce_r3 <= #1 fs_ce_r2;
-
-always @(posedge clk)
-	fs_ce <= #1 fs_ce_r3;
+always @(posedge clk)	fs_ce <= fs_ce_d;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -252,50 +234,75 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	fs_state <= #1 FS_IDLE;
-	else		fs_state <= #1 fs_next_state;
+	if(!rst)	fs_state <= FS_IDLE;
+	else		fs_state <= fs_next_state;
 
 always @(fs_state or fs_ce or k or j or rx_en)
    begin
 	synced_d = 1'b0;
+	sync_err_d = 1'b0;
 	fs_next_state = fs_state;
 	if(fs_ce)
 	   case(fs_state)	// synopsys full_case parallel_case
 		FS_IDLE:
 		     begin
-			if(k & rx_en)	fs_next_state = K1;
+			if(k && rx_en)	fs_next_state = K1;
 		     end
 		K1:
 		     begin
-			if(j & rx_en)	fs_next_state = J1;
-			else		fs_next_state = FS_IDLE;
+			if(j && rx_en)	fs_next_state = J1;
+			else
+			   begin
+					sync_err_d = 1'b1;
+					fs_next_state = FS_IDLE;
+			   end
 		     end
 		J1:
 		     begin
-			if(k & rx_en)	fs_next_state = K2;
-			else		fs_next_state = FS_IDLE;
+			if(k && rx_en)	fs_next_state = K2;
+			else
+			   begin
+					sync_err_d = 1'b1;
+					fs_next_state = FS_IDLE;
+			   end
 		     end
 		K2:
 		     begin
-			if(j & rx_en)	fs_next_state = J2;
-			else		fs_next_state = FS_IDLE;
+			if(j && rx_en)	fs_next_state = J2;
+			else
+			   begin
+					sync_err_d = 1'b1;
+					fs_next_state = FS_IDLE;
+			   end
 		     end
 		J2:
 		     begin
-			if(k & rx_en)	fs_next_state = K3;
-			else		fs_next_state = FS_IDLE;
+			if(k && rx_en)	fs_next_state = K3;
+			else
+			   begin
+					sync_err_d = 1'b1;
+					fs_next_state = FS_IDLE;
+			   end
 		     end
 		K3:
 		     begin
-			if(j & rx_en)	fs_next_state = J3;
+			if(j && rx_en)	fs_next_state = J3;
 			else
-			if(k & rx_en)	fs_next_state = K4;	// Allow missing one J
-			else		fs_next_state = FS_IDLE;
+			if(k && rx_en)	fs_next_state = K4;	// Allow missing one J
+			else
+			   begin
+					sync_err_d = 1'b1;
+					fs_next_state = FS_IDLE;
+			   end
 		     end
 		J3:
 		     begin
-			if(k & rx_en)	fs_next_state = K4;
-			else		fs_next_state = FS_IDLE;
+			if(k && rx_en)	fs_next_state = K4;
+			else
+			   begin
+					sync_err_d = 1'b1;
+					fs_next_state = FS_IDLE;
+			   end
 		     end
 		K4:
 		     begin
@@ -315,16 +322,16 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)		rx_active <= #1 1'b0;
+	if(!rst)		rx_active <= 1'b0;
 	else
-	if(synced_d & rx_en)	rx_active <= #1 1'b1;
+	if(synced_d && rx_en)	rx_active <= 1'b1;
 	else
-	if(se0 & rx_valid_r )	rx_active <= #1 1'b0;
+	if(se0 && rx_valid_r)	rx_active <= 1'b0;
 
 always @(posedge clk)
-	if(rx_valid)	rx_valid_r <= #1 1'b1;
+	if(rx_valid)	rx_valid_r <= 1'b1;
 	else
-	if(fs_ce)	rx_valid_r <= #1 1'b0;
+	if(fs_ce)	rx_valid_r <= 1'b0;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -332,16 +339,16 @@ always @(posedge clk)
 //
 
 always @(posedge clk)
-	if(fs_ce)	sd_r <= #1 rxd_s;
+	if(fs_ce)	sd_r <= rxd_s;
 
 `ifdef USB_ASYNC_REST
 always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)		sd_nrzi <= #1 1'b0;
+	if(!rst)		sd_nrzi <= 1'b0;
 	else
-	if(rx_active & fs_ce)	sd_nrzi <= #1 !(rxd_s ^ sd_r);
+	if(rx_active && fs_ce)	sd_nrzi <= !(rxd_s ^ sd_r);
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -353,17 +360,20 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)	one_cnt <= #1 3'h0;
+	if(!rst)	one_cnt <= 3'h0;
 	else
-	if(!shift_en)	one_cnt <= #1 3'h0;
+	if(!shift_en)	one_cnt <= 3'h0;
 	else
 	if(fs_ce)
 	   begin
-		if(!sd_nrzi | drop_bit)	one_cnt <= #1 3'h0;
-		else			one_cnt <= #1 one_cnt + 3'h1;
+		if(!sd_nrzi || drop_bit)	one_cnt <= 3'h0;
+		else				one_cnt <= one_cnt + 3'h1;
 	   end
 
 assign drop_bit = (one_cnt==3'h6);
+
+always @(posedge clk)	// Bit Stuff Error
+	bit_stuff_err <= drop_bit & sd_nrzi & fs_ce & !se0 & rx_active;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -371,11 +381,11 @@ assign drop_bit = (one_cnt==3'h6);
 //
 
 always @(posedge clk)
-	if(fs_ce)	shift_en <= #1 synced_d | rx_active;
+	if(fs_ce)	shift_en <= synced_d | rx_active;
 
 always @(posedge clk)
-	if(fs_ce & shift_en & !drop_bit)
-		hold_reg <= #1 {sd_nrzi, hold_reg[7:1]};
+	if(fs_ce && shift_en && !drop_bit)
+		hold_reg <= {sd_nrzi, hold_reg[7:1]};
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -387,25 +397,29 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)		bit_cnt <= #1 3'b0;
+	if(!rst)		bit_cnt <= 3'b0;
 	else
-	if(!shift_en)		bit_cnt <= #1 3'h0;
+	if(!shift_en)		bit_cnt <= 3'h0;
 	else
-	if(fs_ce & !drop_bit)	bit_cnt <= #1 bit_cnt + 3'h1;
+	if(fs_ce && !drop_bit)	bit_cnt <= bit_cnt + 3'h1;
 
 `ifdef USB_ASYNC_REST
 always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)				rx_valid1 <= #1 1'b0;
+	if(!rst)					rx_valid1 <= 1'b0;
 	else
-	if(fs_ce & !drop_bit & (bit_cnt==3'h7))	rx_valid1 <= #1 1'b1;
+	if(fs_ce && !drop_bit && (bit_cnt==3'h7))	rx_valid1 <= 1'b1;
 	else
-	if(rx_valid1 & fs_ce & !drop_bit)	rx_valid1 <= #1 1'b0;
+	if(rx_valid1 && fs_ce && !drop_bit)		rx_valid1 <= 1'b0;
 
 always @(posedge clk)
-	rx_valid <= #1 !drop_bit & rx_valid1 & fs_ce;
+	rx_valid <= !drop_bit & rx_valid1 & fs_ce;
+
+always @(posedge clk)	se0_r <= se0;
+
+always @(posedge clk)	byte_err <= se0 & !se0_r & (|bit_cnt);
 
 endmodule
 

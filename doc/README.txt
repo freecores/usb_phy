@@ -16,16 +16,23 @@ in real hardware and it works just fine.
 Documentation
 -------------
 Sorry, there is none. I just don't have the time to write it. I have tried
-to follow the UTMI interface specification from USB 2.0 with one exception:
-I have not added any error checking in the RX PHY, hence the RxError pin
-is permanently tide to ground.
+to follow the UTMI interface specification from USB 2.0.
 'phy_mode' selects between single ended and differential tx_phy output. See
 Philips ISP 1105 transceiver data sheet for an explanation of it's MODE
-select pin.
+select pin (see Note below).
 Currently this PHY only operates in Full-Speed mode. Required clock frequency
 is 48MHz, from which the 12MHz USB transmit and receive clocks are derived.
 
-Notes:
+RxError reports the following errors:
+  - sync errors
+    Could not synchronize to incoming bit stream
+  - Bit Stuff Error
+    Stuff bit had the wrong value (expected '0' got '1')
+  - Byte Error
+    Got a EOP (se0) before finished assembling a full byteAll of those errors
+    are or'ed together and reported via RxError.
+
+Note:
 1) "phy_tx_mode" selects the PHY Transmit Mode:
 When phy_tx_mode is '0' the outputs are encoded as:
 	txdn, txdp
@@ -44,7 +51,7 @@ When phy_tx_mode is '1' the outputs are encoded as:
 See PHILIPS Transceiver Data Sheet for: ISP1105, ISP1106 and ISP1107
 for more details.
 
-2) "usb_rst" Indicates a USB Bus Reset (this output is also ored with
+2) "usb_rst" Indicates a USB Bus Reset (this output is also or'ed with
    the reset input).
 
 Misc
