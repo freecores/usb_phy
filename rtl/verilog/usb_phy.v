@@ -38,16 +38,21 @@
 
 //  CVS Log
 //
-//  $Id: usb_phy.v,v 1.3 2003-10-19 17:40:13 rudi Exp $
+//  $Id: usb_phy.v,v 1.4 2003-10-21 05:58:40 rudi Exp $
 //
-//  $Date: 2003-10-19 17:40:13 $
-//  $Revision: 1.3 $
+//  $Date: 2003-10-21 05:58:40 $
+//  $Revision: 1.4 $
 //  $Author: rudi $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.3  2003/10/19 17:40:13  rudi
+//               - Made core more robust against line noise
+//               - Added Error Checking and Reporting
+//               (See README.txt for more info)
+//
 //               Revision 1.2  2002/09/16 16:06:37  rudi
 //               Changed top level name to be consistent ...
 //
@@ -97,14 +102,13 @@ output	[1:0]	LineState_o;
 
 reg	[4:0]	rst_cnt;
 reg		usb_rst;
-wire		reset;
+wire		fs_ce;
+wire		rst;
 
 ///////////////////////////////////////////////////////////////////
 //
 // Misc Logic
 //
-
-assign reset = rst & ~usb_rst;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -113,7 +117,7 @@ assign reset = rst & ~usb_rst;
 
 usb_tx_phy i_tx_phy(
 	.clk(		clk		),
-	.rst(		reset		),
+	.rst(		rst		),
 	.fs_ce(		fs_ce		),
 	.phy_mode(	phy_tx_mode	),
 
@@ -135,7 +139,7 @@ usb_tx_phy i_tx_phy(
 
 usb_rx_phy i_rx_phy(
 	.clk(		clk		),
-	.rst(		reset		),
+	.rst(		rst		),
 	.fs_ce(		fs_ce		),
 
 	// Transciever Interface
@@ -157,7 +161,11 @@ usb_rx_phy i_rx_phy(
 // Generate an USB Reset is we see SE0 for at least 2.5uS
 //
 
+`ifdef USB_ASYNC_REST
+always @(posedge clk or negedge rst)
+`else
 always @(posedge clk)
+`endif
 	if(!rst)			rst_cnt <= 5'h0;
 	else
 	if(LineState_o != 2'h0)		rst_cnt <= 5'h0;

@@ -39,16 +39,21 @@
 
 //  CVS Log
 //
-//  $Id: usb_tx_phy.v,v 1.2 2003-10-19 17:40:13 rudi Exp $
+//  $Id: usb_tx_phy.v,v 1.3 2003-10-21 05:58:41 rudi Exp $
 //
-//  $Date: 2003-10-19 17:40:13 $
-//  $Revision: 1.2 $
+//  $Date: 2003-10-21 05:58:41 $
+//  $Revision: 1.3 $
 //  $Author: rudi $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.2  2003/10/19 17:40:13  rudi
+//               - Made core more robust against line noise
+//               - Added Error Checking and Reporting
+//               (See README.txt for more info)
+//
 //               Revision 1.1.1.1  2002/09/16 14:27:02  rudi
 //               Created Directory Structure
 //
@@ -399,22 +404,18 @@ always @(state or TxValid_i or data_done or sft_done_e or eop_done or fs_ce)
 
 	case(state)	// synopsys full_case parallel_case
 	   IDLE:
-		   begin
 			if(TxValid_i)
 			   begin
 				ld_sop_d = 1'b1;
 				next_state = SOP;
 			   end
-		   end
 	   SOP:
-		   begin
 			if(sft_done_e)
 			   begin
 				tx_ready_d = 1'b1;
 				ld_data_d = 1'b1;
 				next_state = DATA;
 			   end
-		   end
 	   DATA:
 		   begin
 			if(!data_done && sft_done_e)
@@ -430,17 +431,11 @@ always @(state or TxValid_i or data_done or sft_done_e or eop_done or fs_ce)
 			   end
 		   end
 	   EOP1:
-		   begin
 			if(eop_done)		next_state = EOP2;
-		   end
 	   EOP2:
-		   begin
 			if(!eop_done && fs_ce)	next_state = WAIT;
-		   end
 	   WAIT:
-		   begin
 			if(fs_ce)		next_state = IDLE;
-		   end
 	endcase
    end
 
