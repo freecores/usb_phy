@@ -38,16 +38,19 @@
 
 //  CVS Log
 //
-//  $Id: usb_phy.v,v 1.1.1.1 2002-09-16 14:26:59 rudi Exp $
+//  $Id: usb_phy.v,v 1.2 2002-09-16 16:06:37 rudi Exp $
 //
-//  $Date: 2002-09-16 14:26:59 $
-//  $Revision: 1.1.1.1 $
+//  $Date: 2002-09-16 16:06:37 $
+//  $Revision: 1.2 $
 //  $Author: rudi $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.1.1.1  2002/09/16 14:26:59  rudi
+//               Created Directory Structure
+//
 //
 //
 //
@@ -58,7 +61,7 @@
 
 `include "timescale.v"
 
-module usbf_phy(clk, rst, phy_tx_mode, usb_rst,
+module usb_phy(clk, rst, phy_tx_mode, usb_rst,
 	
 		// Transciever Interface
 		txdp, txdn, txoe,	
