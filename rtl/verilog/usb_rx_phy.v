@@ -39,16 +39,19 @@
 
 //  CVS Log
 //
-//  $Id: usb_rx_phy.v,v 1.4 2003-12-02 04:56:00 rudi Exp $
+//  $Id: usb_rx_phy.v,v 1.5 2004-10-19 09:29:07 rudi Exp $
 //
-//  $Date: 2003-12-02 04:56:00 $
-//  $Revision: 1.4 $
+//  $Date: 2004-10-19 09:29:07 $
+//  $Revision: 1.5 $
 //  $Author: rudi $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.4  2003/12/02 04:56:00  rudi
+//               Fixed a bug reported by Karl C. Posch from Graz University of Technology. Thanks Karl !
+//
 //               Revision 1.3  2003/10/19 18:07:45  rudi
 //               - Fixed Sync Error to be only checked/generated during the sync phase
 //
@@ -122,6 +125,7 @@ reg		rx_valid_r;
 reg		sync_err_d, sync_err;
 reg		bit_stuff_err;
 reg		se0_r, byte_err;
+reg		se0_s;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -132,7 +136,7 @@ assign RxActive_o = rx_active;
 assign RxValid_o = rx_valid;
 assign RxError_o = sync_err | bit_stuff_err | byte_err;
 assign DataIn_o = hold_reg;
-assign LineState = {rxdp_s1, rxdn_s1};
+assign LineState = {rxdn_s1, rxdp_s1};
 
 always @(posedge clk)	rx_en <= RxEn_i;
 always @(posedge clk)	sync_err <= !rx_active & sync_err_d;
@@ -167,6 +171,8 @@ always @(posedge clk)	rxdn_s   <= (rxdn_s0 & rxdn_s1) | rxdn_s_r;	// Avoid detec
 assign k = !rxdp_s &  rxdn_s;
 assign j =  rxdp_s & !rxdn_s;
 assign se0 = !rxdp_s & !rxdn_s;
+
+always @(posedge clk)	if(fs_ce)	se0_s <= se0;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -251,12 +257,12 @@ always @(posedge clk)
 	if(!rst)	fs_state <= FS_IDLE;
 	else		fs_state <= fs_next_state;
 
-always @(fs_state or fs_ce or k or j or rx_en)
+always @(fs_state or fs_ce or k or j or rx_en or rx_active or se0 or se0_s)
    begin
 	synced_d = 1'b0;
 	sync_err_d = 1'b0;
 	fs_next_state = fs_state;
-	if(fs_ce)
+	if(fs_ce && !rx_active && !se0 && !se0_s)
 	   case(fs_state)	// synopsys full_case parallel_case
 		FS_IDLE:
 		     begin
@@ -302,7 +308,11 @@ always @(fs_state or fs_ce or k or j or rx_en)
 		     begin
 			if(j && rx_en)	fs_next_state = J3;
 			else
-			if(k && rx_en)	fs_next_state = K4;	// Allow missing one J
+			if(k && rx_en)
+			   begin
+					fs_next_state = FS_IDLE;	// Allow missing first K-J
+					synced_d = 1'b1;
+			   end
 			else
 			   begin
 					sync_err_d = 1'b1;
@@ -388,8 +398,7 @@ always @(posedge clk)
 
 assign drop_bit = (one_cnt==3'h6);
 
-always @(posedge clk)	// Bit Stuff Error
-	bit_stuff_err <= drop_bit & sd_nrzi & fs_ce & !se0 & rx_active;
+always @(posedge clk)	bit_stuff_err <= drop_bit & sd_nrzi & fs_ce & !se0 & rx_active; // Bit Stuff Error
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -430,12 +439,11 @@ always @(posedge clk)
 	else
 	if(rx_valid1 && fs_ce && !drop_bit)		rx_valid1 <= 1'b0;
 
-always @(posedge clk)
-	rx_valid <= !drop_bit & rx_valid1 & fs_ce;
+always @(posedge clk)	rx_valid <= !drop_bit & rx_valid1 & fs_ce;
 
 always @(posedge clk)	se0_r <= se0;
 
-always @(posedge clk)	byte_err <= se0 & !se0_r & (|bit_cnt);
+always @(posedge clk)	byte_err <= se0 & !se0_r & (|bit_cnt[2:1]) & rx_active;
 
 endmodule
 

@@ -39,16 +39,21 @@
 
 //  CVS Log
 //
-//  $Id: usb_tx_phy.v,v 1.3 2003-10-21 05:58:41 rudi Exp $
+//  $Id: usb_tx_phy.v,v 1.4 2004-10-19 09:29:07 rudi Exp $
 //
-//  $Date: 2003-10-21 05:58:41 $
-//  $Revision: 1.3 $
+//  $Date: 2004-10-19 09:29:07 $
+//  $Revision: 1.4 $
 //  $Author: rudi $
 //  $Locker:  $
 //  $State: Exp $
 //
 // Change History:
 //               $Log: not supported by cvs2svn $
+//               Revision 1.3  2003/10/21 05:58:41  rudi
+//               usb_rst is no longer or'ed with the incomming reset internally.
+//               Now usb_rst is simply an output, the application can decide how
+//               to utilize it.
+//
 //               Revision 1.2  2003/10/19 17:40:13  rudi
 //               - Made core more robust against line noise
 //               - Added Error Checking and Reporting
@@ -107,6 +112,8 @@ reg		tx_ip;
 reg		tx_ip_sync;
 reg	[2:0]	bit_cnt;
 reg	[7:0]	hold_reg;
+reg	[7:0]	hold_reg_d;
+
 reg		sd_raw_o;
 wire		hold;
 reg		data_done;
@@ -123,6 +130,7 @@ reg		append_eop;
 reg		append_eop_sync1;
 reg		append_eop_sync2;
 reg		append_eop_sync3;
+reg		append_eop_sync4;
 reg		txdp, txdn;
 reg		txoe_r1, txoe_r2;
 reg		txoe;
@@ -140,8 +148,7 @@ always @(posedge clk)
 	if(!rst)	TxReady_o <= 1'b0;
 	else		TxReady_o <= tx_ready_d & TxValid_i;
 
-always @(posedge clk)
-	ld_data <= ld_data_d;
+always @(posedge clk) ld_data <= ld_data_d;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -177,11 +184,11 @@ always @(posedge clk or negedge rst)
 `else
 always @(posedge clk)
 `endif
-	if(!rst)		data_done <= 1'b0;
+	if(!rst)			data_done <= 1'b0;
 	else
 	if(TxValid_i && ! tx_ip)	data_done <= 1'b1;
 	else
-	if(!TxValid_i)		data_done <= 1'b0;
+	if(!TxValid_i)			data_done <= 1'b0;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -205,14 +212,14 @@ always @(posedge clk)
 	if(!tx_ip_sync)		sd_raw_o <= 1'b0;
 	else
 	case(bit_cnt)	// synopsys full_case parallel_case
-	   3'h0: sd_raw_o <= hold_reg[0];
-	   3'h1: sd_raw_o <= hold_reg[1];
-	   3'h2: sd_raw_o <= hold_reg[2];
-	   3'h3: sd_raw_o <= hold_reg[3];
-	   3'h4: sd_raw_o <= hold_reg[4];
-	   3'h5: sd_raw_o <= hold_reg[5];
-	   3'h6: sd_raw_o <= hold_reg[6];
-	   3'h7: sd_raw_o <= hold_reg[7];
+	   3'h0: sd_raw_o <= hold_reg_d[0];
+	   3'h1: sd_raw_o <= hold_reg_d[1];
+	   3'h2: sd_raw_o <= hold_reg_d[2];
+	   3'h3: sd_raw_o <= hold_reg_d[3];
+	   3'h4: sd_raw_o <= hold_reg_d[4];
+	   3'h5: sd_raw_o <= hold_reg_d[5];
+	   3'h6: sd_raw_o <= hold_reg_d[6];
+	   3'h7: sd_raw_o <= hold_reg_d[7];
 	endcase
 
 always @(posedge clk)
@@ -228,6 +235,8 @@ always @(posedge clk)
 	if(ld_sop_d)	hold_reg <= 8'h80;
 	else
 	if(ld_data)	hold_reg <= DataOut_i;
+
+always @(posedge clk) hold_reg_d <= hold_reg;
 
 ///////////////////////////////////////////////////////////////////
 //
@@ -317,7 +326,17 @@ always @(posedge clk)
 `endif
 	if(!rst)	append_eop_sync3 <= 1'b0;
 	else
-	if(fs_ce)	append_eop_sync3 <= append_eop_sync2;
+	if(fs_ce)	append_eop_sync3 <= append_eop_sync2 |
+			(append_eop_sync3 & !append_eop_sync4);	// Make sure always 2 bit wide
+
+`ifdef USB_ASYNC_REST
+always @(posedge clk or negedge rst)
+`else
+always @(posedge clk)
+`endif
+	if(!rst)	append_eop_sync4 <= 1'b0;
+	else
+	if(fs_ce)	append_eop_sync4 <= append_eop_sync3;
 
 assign eop_done = append_eop_sync3;
 
