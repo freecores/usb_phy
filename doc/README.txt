@@ -21,6 +21,12 @@ Sorry, there is none. I just don't have the time to write it. I have tried
 to follow the UTMI interface specification from USB 2.0 with one exception:
 I have not added any error checking in the RX PHY, hence the RxError pin
 is permanently tide to ground.
+'phy_mode' selects between single ended and differential tx_phy output. See
+Philips ISP 1105 transceiver data sheet for an explanation of it's MODE
+select pin.
+Currently this PHY only operates in Full-Speed mode. Required clock frequency
+is 48MHz, from which the 12MHz USB transmit and receive clocks are derived.
+
 
 Misc
 ----
@@ -38,7 +44,7 @@ Directory Structure
  +-doc                        Documentation
  |
  +-bench--+                   Test Bench
- |        +- verilog          Verilog Sources
+ |        +-verilog           Verilog Sources
  |        +-vhdl              VHDL Sources
  |
  +-rtl----+                   Core RTL Sources
