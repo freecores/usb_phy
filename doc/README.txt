@@ -10,10 +10,8 @@ I have NOT yet tested it with my USB 2.0 Function IP core.
 
 Test Bench
 ----------
-There is no test bench, period !
-Please don't email me asking for one, unless you want to hire me to
-write one ! As I said above I have tested this core in real hardware and
-it works just fine.
+There is no test bench, period !  As I said above I have tested this core
+in real hardware and it works just fine.
 
 Documentation
 -------------
@@ -27,6 +25,27 @@ select pin.
 Currently this PHY only operates in Full-Speed mode. Required clock frequency
 is 48MHz, from which the 12MHz USB transmit and receive clocks are derived.
 
+Notes:
+1) "phy_tx_mode" selects the PHY Transmit Mode:
+When phy_tx_mode is '0' the outputs are encoded as:
+	txdn, txdp
+	 0	0	Differential Logic '0'
+	 0	1	Differential Logic '1'
+	 1	0	Single Ended '0'
+	 1	1	Single Ended '0'
+
+When phy_tx_mode is '1' the outputs are encoded as:
+	txdn, txdp
+	 0	0	Single Ended '0'
+	 0	1	Differential Logic '1'
+	 1	0	Differential Logic '0'
+	 1	1	Illegal State
+
+See PHILIPS Transceiver Data Sheet for: ISP1105, ISP1106 and ISP1107
+for more details.
+
+2) "usb_rst" Indicates a USB Bus Reset (this output is also ored with
+   the reset input).
 
 Misc
 ----
